@@ -1,0 +1,11 @@
+{
+    "name": "softwaredeveloper/digital-edge",
+    "description": "Consuming Digital Edge External Api",
+    "authors": [
+        {
+            "name": "Olanrewaju",
+            "email": "lanre.bolaji007@gmail.com"
+        }
+    ],
+    "require": {}
+}
