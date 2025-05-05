@@ -10,8 +10,8 @@ class Config
         $this->settings = [
             'api' => [
                 'baseUrl' => 'https://preprod-dvs-api.dtone.com/v1',
-                'apiKey' => 'Wh27QPVOV/W1R9r+1Pat3vJ5JgvUjwDnQ4nlqdFjoiM=',
-                'apiSecret' => 'your_api_secret_here' // Add your actual secret here
+                'apiKey' => '82149978-3098-497a-82c8-f92e33c35524',
+                'apiSecret' => 'ed899aef-5a40-4a0a-b7af-0be72c5c7efa' 
             
             ]
         ];

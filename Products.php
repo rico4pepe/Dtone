@@ -19,13 +19,14 @@ require_once 'Logger.php';
         
         // Make the request
         // Using relative URL which will be combined with baseUrl from config
-        $response = $httpClient->request('GET', '/v1/products');
+        $response = $httpClient->request('GET', '/products');
         
         // Check status code
         if ($response['statusCode'] === 200) {
             // Parse and return the response body
             $products = json_decode($response['body'], true);
-            return $products;
+            header('Content-Type: application/json');
+            echo json_encode($products, JSON_PRETTY_PRINT);
         } else {
             // Log error and return null
             $logger->log("API Error. Status code: " . $response['statusCode']);

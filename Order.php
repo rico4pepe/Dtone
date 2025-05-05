@@ -4,6 +4,7 @@
 require_once 'Config.php';
 require_once 'Logger.php';
 require_once 'MyHttpClient.php';
+require_once 'OrderService.php';
 
 
 // Initialize components
@@ -18,7 +19,9 @@ $validator = new OrderService($logger);
 try {
     // Get raw JSON input from the request
     $rawInput = file_get_contents("php://input");
-    $requestData = json_decode($rawInput, true); // Decode as an associative array
+    $logger->log("Raw input received: " . $rawInput);
+
+    $requestData = json_decode($rawInput, true);
 
     // Validate and sanitize input
     $validationResult = $validator->sanitizeAndValidate($requestData);
@@ -29,12 +32,19 @@ try {
 
     $sanitizedData = $validationResult['data']; // Extract the cleaned data
 
+    $params =  $sanitizedData;
     // Make the POST request with sanitized data
-    $response = $apiClient->request('POST', '/v1/async/transactions', $sanitizedData);
+    $response = $myhttpClient->request('POST', '/async/transactions',[],  $sanitizedData );
 
     // Return API response
     header('Content-Type: application/json');
-    echo $response;
+    $decoded = json_decode($response['body'], true);
+
+    if (json_last_error() === JSON_ERROR_NONE) {
+        echo json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    } else {
+        echo $response['body'];
+    }
 } catch (InvalidArgumentException $e) {
     // Return validation error response
     header('Content-Type: application/json');

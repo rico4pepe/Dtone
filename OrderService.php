@@ -3,8 +3,8 @@
 class OrderService
 {
     private Logger $logger;
-    private Config $config;
-    private MyHttpClient $httpClient;
+   // private Config $config;
+    //private MyHttpClient $httpClient;
 
     public function __construct(Logger $logger)
     {

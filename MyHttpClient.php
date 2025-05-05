@@ -11,31 +11,30 @@ class MyHttpClient
         $this->logger = $logger;
     }
   
-
     /**
-     * Validates required headers and their format
-     * @param array $headers
-     * @throws InvalidArgumentException
-     */
-    private function validateHeaders(array $headers): void
-    {
-        $requiredHeaders = ['Api-Key', 'Api-Secret', 'Content-Type'];
-        
-        foreach ($requiredHeaders as $required) {
-            if (!isset($headers[$required])) {
-                $this->logger->log("Missing required header: {$required}");
-                throw new InvalidArgumentException("Missing required header: {$required}");
-            }
-        }
-
-        // Validate header values are not empty
-        foreach ($headers as $key => $value) {
-            if (empty($value) && $value !== '0') {
-                $this->logger->log("Header {$key} cannot be empty");
-                throw new InvalidArgumentException("Header {$key} cannot be empty");
-            }
+ * Validates required headers and their format
+ * @param array $headers
+ * @throws InvalidArgumentException
+ */
+private function validateHeaders(array $headers): void
+{
+    $requiredHeaders = ['Authorization', 'Content-Type'];
+    
+    foreach ($requiredHeaders as $required) {
+        if (!isset($headers[$required])) {
+            $this->logger->log("Missing required header: {$required}");
+            throw new InvalidArgumentException("Missing required header: {$required}");
         }
     }
+
+    // Validate header values are not empty
+    foreach ($headers as $key => $value) {
+        if (empty($value) && $value !== '0') {
+            $this->logger->log("Header {$key} cannot be empty");
+            throw new InvalidArgumentException("Header {$key} cannot be empty");
+        }
+    }
+}
 
     /**
      * Format headers from associative array to CURL format
@@ -51,21 +50,27 @@ class MyHttpClient
         return $formattedHeaders;
     }
 
-    /**
-     * Get default headers with API credentials
-     * @return array
-     */
-    private function getDefaultHeaders(): array
-    {
-        return [
-            'Api-Key' => $this->config->get('api.apiKey'),
-            'Api-Secret' => $this->config->get('api.apiSecret'),
-            'Content-Type' => 'application/json'
-        ];
-    }
+   /**
+ * Get default headers with API credentials
+ * @return array
+ */
+private function getDefaultHeaders(): array
+{
+    $apiKey = $this->config->get('api.apiKey');
+    $apiSecret = $this->config->get('api.apiSecret');
+    
+    // Create the Basic Auth header value
+    $authString = base64_encode("$apiKey:$apiSecret");
+    
+    return [
+        'Authorization' => "Basic $authString",
+        'Content-Type' => 'application/json'
+    ];
+}
 
     public function request($method, $url, $headers = [], $params = [])
     {
+        $ch = null;
         try {
             // Merge default headers with any provided headers
             $headers = array_merge($this->getDefaultHeaders(), $headers);
@@ -76,6 +81,7 @@ class MyHttpClient
             $ch = curl_init();
             
             if (!$ch) {
+                $this->logger->log("Failed to initialize CURL");
                 throw new RuntimeException("Failed to initialize CURL");
             }
 
@@ -98,25 +104,40 @@ class MyHttpClient
             // Format headers for CURL
             $formattedHeaders = $this->formatHeaders($headers);
 
+            // Log request details
+            $this->logger->log("Request: {$method} {$url}");
+            $this->logger->log("Request Headers: " . json_encode($headers));
+            if (in_array(strtoupper($method), ['POST', 'PUT']) && !empty($params)) {
+                $this->logger->log("Request Body: " . json_encode($params));
+            }
+
             // Set basic CURL options
             curl_setopt_array($ch, [
                 CURLOPT_URL => $url,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => $formattedHeaders,
                 CURLOPT_HEADER => true, // To capture response headers
-                CURLOPT_VERBOSE => true // For debugging
+                CURLOPT_VERBOSE => true, // For debugging
+                CURLOPT_CONNECTTIMEOUT => 10, // Connection timeout in seconds
+                CURLOPT_TIMEOUT => 30, // Request timeout in seconds
+                CURLOPT_SSL_VERIFYPEER => true, // Verify SSL cert
+                CURLOPT_SSL_VERIFYHOST => 2 // Verify SSL host
             ]);
 
             // Set method-specific options
             switch (strtoupper($method)) {
                 case 'POST':
                     curl_setopt($ch, CURLOPT_POST, true);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+                    if (!empty($params)) {
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+                    }
                     break;
                     
                 case 'PUT':
                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+                    if (!empty($params)) {
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($params));
+                    }
                     break;
 
                 case 'DELETE':
@@ -128,7 +149,9 @@ class MyHttpClient
             $response = curl_exec($ch);
             
             if ($response === false) {
-                throw new RuntimeException('Curl error: ' . curl_error($ch));
+                $error = curl_error($ch);
+                $this->logger->log("CURL error: {$error}");
+                throw new RuntimeException('Curl error: ' . $error);
             }
 
             $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
@@ -136,7 +159,12 @@ class MyHttpClient
             $responseBody = substr($response, $headerSize);
             $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
+            // Log response
+            $this->logger->log("Response Status: {$statusCode}");
+            $this->logger->log("Response Body: {$responseBody}");
+
             curl_close($ch);
+            $ch = null;
 
             return [
                 'statusCode' => $statusCode,
@@ -145,9 +173,10 @@ class MyHttpClient
             ];
 
         } catch (Exception $e) {
-            if (isset($ch)) {
+            if (isset($ch) && $ch !== null) {
                 curl_close($ch);
             }
+            $this->logger->log("Exception in HTTP request: " . $e->getMessage());
             throw $e;
         }
     }
